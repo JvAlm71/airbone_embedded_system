@@ -1,2 +1,2 @@
 # airbone_embedded_system
-Repositorio para guardar as atualizações do sistema embarcado da disciplina
+Repositorio para guardar as atualizações de um sistema embarcado real
