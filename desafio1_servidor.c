@@ -1,51 +1,83 @@
+/*
+ * 			servidorMonoUDP.c
+ *
+ * Este programa servidor foi desenvolvido para receber mensagens de uma aplicacao cliente UDP
+ *
+ * Funcao:     Enviar e receber mensagens compostas de caracteres
+ * Plataforma: Linux (Unix), ou Windows com CygWin
+ * Compilar:   gcc -Wall servidorMonoUDP.c -o servidorMonoUDP
+ * Uso:        ./servidorMonoUDP
+ *
+ * Autor:      Jose Martins Junior
+ *
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+
+#include <sys/types.h>
 #include <sys/socket.h>
+#include <unistd.h>
+#include <netdb.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>
+#include <fcntl.h>
 
-#define PORT 8888
-#define BUFFER_SIZE 1024
+#define SIZE 300            //Tamanho maximo do buffer de caracteres
+#define SERVER_PORT 4567    //Porta do servidor
+#define true 1
 
-int main() {
-    int sockfd;
-    struct sockaddr_in server_addr, client_addr;
-    char buffer[BUFFER_SIZE];
-    socklen_t len = sizeof(client_addr);
+int main(int argc, char *argv[]) {
+    int sockId, recvBytes;
+    struct sockaddr_in server;
+    char buf[SIZE];
 
-    // 1. Criar o socket UDP
-    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        perror("Falha ao criar socket");
-        exit(EXIT_FAILURE);
+    if ((sockId = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+       printf("Datagram socket nao pode ser aberto\n");
+       return(1);
     }
 
-    memset(&server_addr, 0, sizeof(server_addr));
-    memset(&client_addr, 0, sizeof(client_addr));
+    // Permite reuso rápido da porta ao reiniciar o servidor
+    int yes = 1;
+    setsockopt(sockId, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
 
-    // 2. Configurar o endereço do servidor para receber de qualquer IP
-    server_addr.sin_family = AF_INET; // IPv4
-    server_addr.sin_addr.s_addr = INADDR_ANY; // Aceita de qualquer endereço
-    server_addr.sin_port = htons(PORT);
+    memset(&server, 0, sizeof(server));
+    server.sin_family = AF_INET;
+    server.sin_addr.s_addr = INADDR_ANY;
+    server.sin_port = htons(SERVER_PORT);
 
-    // 3. Vincular (bind) o socket à porta e endereço
-    if (bind(sockfd, (const struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Falha no bind");
-        close(sockfd);
-        exit(EXIT_FAILURE);
+    if (bind(sockId, (struct sockaddr *)&server, sizeof(server)) < 0) {
+        printf("O bind para o datagram socket falhou\n");
+        close(sockId);
+        return(1);
     }
 
-    printf("Servidor UDP escutando na porta %d...\n", PORT);
+    while(true) {
+        struct sockaddr_in from;
+        socklen_t fromLen = sizeof(from);
+        memset(&from, 0, sizeof(from));
+        memset(buf, 0, sizeof(buf));
 
-    while (1) {
-        // 4. Esperar e receber dados (função bloqueante)
-        int n = recvfrom(sockfd, (char *)buffer, BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *)&client_addr, &len);
-        buffer[n] = '\0'; // Adiciona terminador de string
+        recvBytes = recvfrom(sockId, buf, SIZE - 1, 0, (struct sockaddr *)&from, &fromLen);
+        if (recvBytes <= 0) continue;
+        buf[recvBytes] = '\0'; // garante string terminada
 
-        printf("Recebido de %s:%d -> Mensagem: %s\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), buffer);
+        // Parse "T|U"
+        char *sep = strchr(buf, '|');
+        if (sep) {
+            *sep = '\0';
+            const char *t = buf;
+            const char *u = sep + 1;
+            printf("Temperatura: %s C, Umidade: %s %%\n", t, u);
+        } else {
+            // Caso mensagem fora do formato, mostra bruta
+            printf("Mensagem bruta: %s\n", buf);
+        }
+
+        // Opcional: eco/ACK (desnecessário para broadcast)
+        // sendto(sockId, "OK", 2, 0, (struct sockaddr *)&from, fromLen);
     }
-
-    close(sockfd);
-    return 0;
+    close(sockId);
+    return(0);
 }
+
