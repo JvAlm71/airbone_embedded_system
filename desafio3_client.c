@@ -13,6 +13,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdarg.h>
 
 #define MAX_FLOW_SIZE 1024
 
